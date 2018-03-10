@@ -112,6 +112,7 @@ enum {
 #define ADI_TO_DRP_WDATA(x)		(((x) >> 0) & 0xFFFF)
 
 #define ADI_REG_DRP_STATUS		0x0074
+#define ADI_DRP_LOCKED			(1 << 17)
 #define ADI_DRP_STATUS			(1 << 16)
 #define ADI_DRP_RDATA(x)		(((x) & 0xFFFF) << 0)
 #define ADI_TO_DRP_RDATA(x) 	(((x) >> 0) & 0xFFFF)
@@ -165,6 +166,10 @@ enum {
 #define ADI_TO_DDS_PATT_2(x)	(((x) >> 16) & 0xFFFF)
 #define ADI_DDS_PATT_1(x)		(((x) & 0xFFFF) << 0)
 #define ADI_TO_DDS_PATT_1(x)	(((x) >> 0) & 0xFFFF)
+
+#define ADI_REG_CHAN_CNTRL_7(c) (0x0418 + (c) * 0x40) /* v8.0 */
+#define ADI_DAC_DDS_SEL(x) (((x) & 0xF) << 0)
+#define ADI_TO_DAC_DDS_SEL(x) (((x) >> 0) & 0xF)
 
 #define ADI_REG_USR_CNTRL_3(c)				(0x0420 + (c) * 0x40)
 #define ADI_USR_DATATYPE_BE					(1 << 25)

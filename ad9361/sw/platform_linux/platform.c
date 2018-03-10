@@ -43,6 +43,7 @@
 #include <stdint.h>
 #include "../util.h"
 #include "parameters.h"
+#include "platform.h"
 #include "adc_core.h"
 #include "dac_core.h"
 
@@ -58,6 +59,9 @@
 /************************ Variables Definitions *******************************/
 /******************************************************************************/
 int spidev_fd;
+#ifdef FMCOMMS5
+int spidev_b_fd;
+#endif
 
 /***************************************************************************//**
  * @brief spi_init
@@ -70,6 +74,16 @@ int32_t spi_init(uint32_t device_id,
 	uint8_t bits = 8;
 	uint32_t speed = 10000000;
 	int ret;
+
+	if (device_id) {
+		// Unused variable - fix compiler warning
+	}
+	if (clk_pha) {
+		// Unused variable - fix compiler warning
+	}
+	if (clk_pol) {
+		// Unused variable - fix compiler warning
+	}
 
 	spidev_fd = open(SPIDEV_DEV, O_RDWR);
 	if (spidev_fd < 0) {
@@ -94,18 +108,36 @@ int32_t spi_init(uint32_t device_id,
 		printf("%s: Can't set max speed hz\n\r", __func__);
 		return ret;
 	}
+#ifdef FMCOMMS5
+	spidev_b_fd = open(SPIDEV_B_DEV, O_RDWR);
+	if (spidev_b_fd < 0) {
+		printf("%s: Can't open device\n\r", __func__);
+		return -1;
+	}
+
+	ret = ioctl(spidev_b_fd, SPI_IOC_WR_MODE, &mode);
+	if (ret == -1) {
+		printf("%s: Can't set spi mode\n\r", __func__);
+		return ret;
+	}
+
+	ret = ioctl(spidev_b_fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
+	if (ret == -1) {
+		printf("%s: Can't set bits per word\n\r", __func__);
+		return ret;
+	}
 	
+	ret = ioctl(spidev_b_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+	if (ret == -1) {
+		printf("%s: Can't set max speed hz\n\r", __func__);
+		return ret;
+	}
+#endif
+
 	return 0;
 }
 
-/***************************************************************************//**
- * @brief spi_read
-*******************************************************************************/
-int32_t spi_read(uint8_t *data,
-				 uint8_t bytes_number)
-{
-	return 0;
-}
+
 
 /***************************************************************************//**
  * @brief spi_write_then_read
@@ -114,7 +146,12 @@ int spi_write_then_read(struct spi_device *spi,
 		const unsigned char *txbuf, unsigned n_tx,
 		unsigned char *rxbuf, unsigned n_rx)
 {
-	int ret;
+	int ret = 0;
+
+	if (spi) {
+		// Unused variable - fix compiler warning
+	}
+
 	struct spi_ioc_transfer tr[2] = {
 		{
 			.tx_buf = (unsigned long)txbuf,
@@ -125,10 +162,20 @@ int spi_write_then_read(struct spi_device *spi,
 		},
 	};
 
-	ret = ioctl(spidev_fd, SPI_IOC_MESSAGE(2), &tr);
-	if (ret == 1) {
-		printf("%s: Can't send spi message\n\r", __func__);
-		return -EIO;
+	if (spi->id_no == 0) {
+		ret = ioctl(spidev_fd, SPI_IOC_MESSAGE(2), &tr);
+		if (ret == 1) {
+			printf("%s: Can't send spi message\n\r", __func__);
+			return -EIO;
+		}
+	} else {
+#ifdef FMCOMMS5
+		ret = ioctl(spidev_b_fd, SPI_IOC_MESSAGE(2), &tr);
+		if (ret == 1) {
+			printf("%s: Can't send spi message\n\r", __func__);
+			return -EIO;
+		}
+#endif
 	}
 
 	return ret;
@@ -141,6 +188,7 @@ void gpio_init(uint32_t device_id)
 {
 	int fd, len;
 	char buf[11];
+	int ret;
 
 	fd = open("/sys/class/gpio/export", O_WRONLY);
 	if (fd < 0) {
@@ -149,20 +197,24 @@ void gpio_init(uint32_t device_id)
 	}
 	
 	len = snprintf(buf, sizeof(buf), "%d", device_id);
-	write(fd, buf, len);
+	ret = write(fd, buf, len);
+	if (ret == -1) {
+		// Unused variable - fix compiler warning
+	}
+
 	close(fd);
 }
 
 /***************************************************************************//**
  * @brief gpio_direction
 *******************************************************************************/
-void gpio_direction(uint8_t pin, uint8_t direction)
+void gpio_direction(uint16_t pin, uint8_t direction)
 {
-	int fd, len;
+	int fd;
 	char buf[60];
+	int ret;
 
-	pin = 0; // FIXME
-	len = snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/direction", pin);
+	snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/direction", pin);
 
 	fd = open(buf, O_WRONLY);
 	if (fd < 0) {
@@ -171,9 +223,12 @@ void gpio_direction(uint8_t pin, uint8_t direction)
 	}
 
 	if (direction == 1)
-		write(fd, "out", 4);
+		ret = write(fd, "out", 4);
 	else
-		write(fd, "in", 3);
+		ret = write(fd, "in", 3);
+	if (ret == -1) {
+		// Unused variable - fix compiler warning
+	}
 
 	close(fd);
 }
@@ -183,19 +238,22 @@ void gpio_direction(uint8_t pin, uint8_t direction)
 *******************************************************************************/
 bool gpio_is_valid(int number)
 {
-	return 1;
+	if(number >= 0)
+		return 1;
+	else
+		return 0;
 }
 
 /***************************************************************************//**
  * @brief gpio_data
 *******************************************************************************/
-void gpio_data(uint8_t pin, uint8_t data)
+void gpio_data(uint16_t pin, uint8_t data)
 {
-	int fd, len;
+	int fd;
 	char buf[60];
+	int ret;
 
-	pin = 0; // FIXME
-	len = snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/value", pin);
+	snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/value", pin);
 
 	fd = open(buf, O_WRONLY);
 	if (fd < 0) {
@@ -204,9 +262,12 @@ void gpio_data(uint8_t pin, uint8_t data)
 	}
 
 	if (data)
-		write(fd, "1", 2);
+		ret = write(fd, "1", 2);
 	else
-		write(fd, "0", 2);
+		ret = write(fd, "0", 2);
+	if (ret == -1) {
+		// Unused variable - fix compiler warning
+	}
 
 	close(fd);
 }
@@ -249,8 +310,16 @@ unsigned long msleep_interruptible(unsigned int msecs)
 *******************************************************************************/
 void axiadc_init(struct ad9361_rf_phy *phy)
 {
-	adc_init();
-	dac_init(phy, DATA_SEL_DDS);
+	adc_init(phy);
+	dac_init(phy, DATA_SEL_DDS, 0);
+}
+
+/***************************************************************************//**
+ * @brief axiadc_post_setup
+*******************************************************************************/
+int axiadc_post_setup(struct ad9361_rf_phy *phy)
+{
+	return ad9361_post_setup(phy);
 }
 
 /***************************************************************************//**
@@ -260,7 +329,7 @@ unsigned int axiadc_read(struct axiadc_state *st, unsigned long reg)
 {
 	unsigned int val;
 
-	adc_read(reg, &val);
+	adc_read(st->phy, reg, &val);
 
 	return val;
 }
@@ -270,6 +339,55 @@ unsigned int axiadc_read(struct axiadc_state *st, unsigned long reg)
 *******************************************************************************/
 void axiadc_write(struct axiadc_state *st, unsigned reg, unsigned val)
 {
-	adc_write(reg, val);
+	adc_write(st->phy, reg, val);
 }
 
+/***************************************************************************//**
+ * @brief axiadc_set_pnsel
+*******************************************************************************/
+int axiadc_set_pnsel(struct axiadc_state *st, int channel, enum adc_pn_sel sel)
+{
+	unsigned reg;
+
+	uint32_t version = axiadc_read(st, 0x4000);
+
+	if (PCORE_VERSION_MAJOR(version) > 7) {
+		reg = axiadc_read(st, ADI_REG_CHAN_CNTRL_3(channel));
+		reg &= ~ADI_ADC_PN_SEL(~0);
+		reg |= ADI_ADC_PN_SEL(sel);
+		axiadc_write(st, ADI_REG_CHAN_CNTRL_3(channel), reg);
+	} else {
+		reg = axiadc_read(st, ADI_REG_CHAN_CNTRL(channel));
+
+		if (sel == ADC_PN_CUSTOM) {
+			reg |= ADI_PN_SEL;
+		} else if (sel == ADC_PN9) {
+			reg &= ~ADI_PN23_TYPE;
+			reg &= ~ADI_PN_SEL;
+		} else {
+			reg |= ADI_PN23_TYPE;
+			reg &= ~ADI_PN_SEL;
+		}
+
+		axiadc_write(st, ADI_REG_CHAN_CNTRL(channel), reg);
+	}
+
+	return 0;
+}
+
+/***************************************************************************//**
+ * @brief axiadc_idelay_set
+*******************************************************************************/
+void axiadc_idelay_set(struct axiadc_state *st,
+				unsigned lane, unsigned val)
+{
+	if (PCORE_VERSION_MAJOR(st->pcore_version) > 8) {
+		axiadc_write(st, ADI_REG_DELAY(lane), val);
+	} else {
+		axiadc_write(st, ADI_REG_DELAY_CNTRL, 0);
+		axiadc_write(st, ADI_REG_DELAY_CNTRL,
+				ADI_DELAY_ADDRESS(lane)
+				| ADI_DELAY_WDATA(val)
+				| ADI_DELAY_SEL);
+	}
+}
